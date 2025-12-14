@@ -242,9 +242,12 @@ def generate_dialogues_hf(
         print(f"  GPU available: {torch.cuda.get_device_name(0)}")
         print(f"  GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
     
-    tokenizer_kwargs = {}
+    tokenizer_kwargs = {
+        'trust_remote_code': True  # Required for custom architectures (Phi-3, Qwen, etc)
+    }
     model_kwargs = {
         'torch_dtype': torch.float16 if device == 'cuda' else torch.float32,
+        'trust_remote_code': True  # Required for custom architectures
     }
     
     # Use device_map='auto' for GPU, this automatically handles multi-GPU
