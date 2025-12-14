@@ -120,12 +120,12 @@ def generate_dialogues_vllm(
             'tensor_parallel_size': 1,
             'dtype': 'float16',
             'gpu_memory_utilization': 0.9,
-            'max_model_len': 2048
+            'max_model_len': 2048,
+            'trust_remote_code': True  # Required for custom architectures
         }
         
         if hf_token:
             llm_kwargs['tokenizer_mode'] = 'auto'
-            llm_kwargs['trust_remote_code'] = True
             # Set environment variable for huggingface_hub
             import os as os_module
             os_module.environ['HF_TOKEN'] = hf_token
