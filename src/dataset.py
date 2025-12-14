@@ -357,48 +357,54 @@ def extract_decision_points(hand, target_player='p1'):
             player = parts[0]
             action_type = parts[1]
             
-            if player != target_player:
-                continue
-            
-            if player not in hole_cards:
-                continue
-            
-            # Get player index
-            player_idx = int(player[1]) - 1
-            
-            bet_to_call = max(current_bets) - current_bets[player_idx]
-            
-            # Create state
-            state = {
-                'street': street,
-                'hole_cards': hole_cards[player],
-                'board_cards': board_cards.copy(),
-                'pot': current_pot,
-                'stack': current_stacks[player_idx],
-                'bet_to_call': bet_to_call,
-                'position': player_idx,
-            }
-            
-            # Get action label
+            # Get action amount
             action_amount = 0
             if len(parts) >= 3:
-                action_amount = int(parts[2])
+                try:
+                    action_amount = int(parts[2])
+                except (ValueError, IndexError):
+                    action_amount = 0
             
-            label = categorize_action(
-                action_type, 
-                action_amount, 
-                bet_to_call, 
-                current_pot, 
-                current_stacks[player_idx]
-            )
+            # Get player index
+            try:
+                player_idx = int(player[1]) - 1
+            except (ValueError, IndexError):
+                continue
             
-            if label >= 0:
-                decision_points.append((state, label))
+            if player_idx < 0 or player_idx >= n_players:
+                continue
             
-            # Update game state
+            # Only record decision points for target player
+            if player == target_player and player in hole_cards:
+                bet_to_call = max(current_bets) - current_bets[player_idx]
+                
+                # Create state
+                state = {
+                    'street': street,
+                    'hole_cards': hole_cards[player],
+                    'board_cards': board_cards.copy(),
+                    'pot': current_pot,
+                    'stack': current_stacks[player_idx],
+                    'bet_to_call': bet_to_call,
+                    'position': player_idx,
+                }
+                
+                label = categorize_action(
+                    action_type, 
+                    action_amount, 
+                    bet_to_call, 
+                    current_pot, 
+                    current_stacks[player_idx]
+                )
+                
+                if label >= 0:
+                    decision_points.append((state, label))
+            
+            # Update game state for ALL players
             if action_type == 'f':
                 pass
             elif action_type == 'cc':
+                bet_to_call = max(current_bets) - current_bets[player_idx]
                 call_amount = min(bet_to_call, current_stacks[player_idx])
                 current_stacks[player_idx] -= call_amount
                 current_bets[player_idx] += call_amount
