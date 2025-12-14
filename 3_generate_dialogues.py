@@ -16,13 +16,14 @@ from generate_text import (
 
 # Configuration
 CONFIG = {
-    'model_name': 'Qwen/Qwen2.5-7B-Instruct',  # Open model, no gate
-    # Alternative options:
-    # 'meta-llama/Llama-3.2-3B-Instruct'  # Gated - requires HF token
-    # 'mistralai/Mistral-7B-Instruct-v0.2'  # Requires auth but easier
-    # 'google/gemma-2b-it'  # Small and fast
-    # 'HuggingFaceH4/zephyr-7b-beta'  # Good quality
-    # 'TinyLlama/TinyLlama-1.1B-Chat-v1.0'  # Very small
+    'model_name': 'mistralai/Mistral-7B-Instruct-v0.2',  # 구버전 transformers 호환
+    # Alternative options (all compatible with older transformers):
+    # 'meta-llama/Llama-2-7b-chat-hf'  # 안정적 (gated)
+    # 'HuggingFaceH4/zephyr-7b-beta'  # 좋은 품질
+    # 'TinyLlama/TinyLlama-1.1B-Chat-v1.0'  # 가벼움
+    # Newer models (require transformers>=4.37):
+    # 'Qwen/Qwen2.5-7B-Instruct'  
+    # 'meta-llama/Llama-3.1-8B-Instruct'
     'max_tokens': 50,
     'temperature': 0.7,
     'batch_size': 8,  # Reduced for stability, increase to 16-32 if GPU has enough memory

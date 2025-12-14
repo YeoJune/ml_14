@@ -12,7 +12,12 @@ import os
 # Prompt Templates
 # ============================================================================
 
-SYSTEM_PROMPT = """You are a professional poker player. Generate realistic poker dialogue based on the game situation and action taken. The dialogue should be concise (1-2 sentences max) and match the player's action and hand strength."""
+SYSTEM_PROMPT = """You are a poker player. Say what you would say out loud during the game. Keep it very short (under 10 words). Examples:
+"I'll call"
+"Let's see the flop"
+"Too rich for me"
+"I'm all in"
+Only output the dialogue, nothing else."""
 
 def create_dialogue_prompt(state, action_label):
     """
@@ -25,31 +30,16 @@ def create_dialogue_prompt(state, action_label):
     Returns:
         prompt: String prompt for LLM
     """
-    action_names = ['fold', 'check/call', 'small raise', 'medium raise', 'large raise', 'all-in']
-    action = action_names[action_label]
-    
     street = state.get('street', 'preflop')
     pot = state.get('pot', 0)
-    stack = state.get('stack', 0)
-    bet_to_call = state.get('bet_to_call', 0)
     
-    # Describe hole cards (without revealing actual cards for privacy)
-    hole_cards = state.get('hole_cards', [])
-    if len(hole_cards) == 2:
-        # Describe hand strength qualitatively
-        hand_desc = "strong hand" if action_label in [3, 4, 5] else "marginal hand" if action_label == 1 else "weak hand"
-    else:
-        hand_desc = "unknown hand"
+    # DO NOT include action in prompt to prevent leakage
+    # Only provide minimal context
     
-    prompt = f"""Game Situation:
-- Street: {street}
-- Pot: {pot} chips
-- Your stack: {stack} chips
-- Bet to call: {bet_to_call} chips
-- Hand: {hand_desc}
-- Action taken: {action}
+    prompt = f"""Street: {street}
+Pot: {pot} chips
 
-Generate a realistic poker dialogue (1-2 sentences) that this player might say:"""
+What would you say?"""
     
     return prompt
 
@@ -323,13 +313,45 @@ def generate_dialogues_hf(
             generated_ids = output[input_length:]
             generated_text = tokenizer.decode(generated_ids, skip_special_tokens=True)
             
-            # Clean up
+            # Aggressive cleaning to remove meta-commentary
             generated_text = generated_text.strip()
-            # Take only first sentence if multiple
-            if '.' in generated_text:
-                generated_text = generated_text.split('.')[0] + '.'
-            if '\n' in generated_text:
-                generated_text = generated_text.split('\n')[0]
+            
+            # Remove common meta phrases
+            bad_phrases = [
+                "Given the", "After checking", "might say:", "could be:", 
+                "would say:", "Here's", "A realistic", "dialogue", 
+                "In this situation", "Based on", "According to",
+                "The player", "This player", "would likely",
+                "could say", "might respond", "example:", "such as:",
+                "for instance", "generate", "output", "say something like"
+            ]
+            
+            for phrase in bad_phrases:
+                if phrase.lower() in generated_text.lower():
+                    # If contains meta-commentary, use fallback
+                    generated_text = ""
+                    break
+            
+            # If empty or too long, use simple fallback
+            if not generated_text or len(generated_text.split()) > 15:
+                # Simple context-based fallback
+                fallbacks = [
+                    "Let's see what happens.",
+                    "I'll play this one.",
+                    "Okay.",
+                    "Let's go.",
+                    "I'm in."
+                ]
+                generated_text = fallbacks[j % len(fallbacks)]
+            else:
+                # Take only first sentence
+                if '.' in generated_text:
+                    generated_text = generated_text.split('.')[0] + '.'
+                if '\n' in generated_text:
+                    generated_text = generated_text.split('\n')[0]
+                
+                # Remove quotes
+                generated_text = generated_text.replace('"', '').replace("'", '')
             
             dialogues.append(generated_text)
     
@@ -354,47 +376,47 @@ def generate_dialogues_hf(
 # ============================================================================
 
 RULE_BASED_TEMPLATES = {
-    0: [  # Fold
-        "I'm out.",
-        "Too rich for my blood.",
-        "Not this time.",
+    0: [  # Fold (but don't say "fold" explicitly)
+        "I'm out this hand.",
+        "Not for me.",
         "I'll pass.",
-        "You got it."
+        "Too much for me.",
+        "Next hand."
     ],
-    1: [  # Check/Call
+    1: [  # Check/Call (neutral)
         "Let's see it.",
         "I'm in.",
-        "Call.",
-        "I'll check.",
-        "Okay."
+        "Okay.",
+        "Let's play.",
+        "Sure."
     ],
-    2: [  # Raise Small
-        "Let's make it interesting.",
-        "I'll bump it up a bit.",
-        "Small raise.",
-        "Adding a little pressure.",
-        "Let's go."
+    2: [  # Raise Small (subtle)
+        "Let me add a bit.",
+        "Making it interesting.",
+        "I'll bump it up.",
+        "A little more.",
+        "Let's raise the stakes."
     ],
     3: [  # Raise Medium
-        "Time to raise.",
-        "I'm raising.",
-        "Let's see who's serious.",
-        "Building the pot.",
-        "I like my hand."
+        "Time to play.",
+        "Let's see who's got it.",
+        "I like my hand.",
+        "Building this pot.",
+        "Let's make it worth it."
     ],
-    4: [  # Raise Large
-        "Big raise!",
-        "Let's play for real money.",
-        "I'm putting you to the test.",
-        "All or nothing.",
-        "You better have something."
+    4: [  # Raise Large (confident but not explicit)
+        "Big move here.",
+        "Let's play for real.",
+        "This is my hand.",
+        "Time to commit.",
+        "I'm feeling good about this."
     ],
-    5: [  # All-in
-        "All in!",
-        "I'm all in!",
-        "Let's settle this now.",
-        "Everything I got.",
-        "This is it!"
+    5: [  # All-in (still don't explicitly say it)
+        "Everything goes in.",
+        "Let's settle this.",
+        "I'm committed.",
+        "This is it.",
+        "All my chips."
     ]
 }
 
