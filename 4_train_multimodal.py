@@ -114,33 +114,48 @@ def main():
     assert np.all(dialogue_labels == labels), "Dialogue labels mismatch!"
     print(f"  ✓ Loaded {len(dialogues)} dialogues (aligned with features)")
     
-    # Compute text embeddings
-    print("\n3. Computing text embeddings...")
-    text_embeddings = compute_text_embeddings(
-        dialogues,
-        model_name=CONFIG['text_model'],
-        batch_size=CONFIG['batch_size'],
-        device=device
-    )
-    
-    # Project to desired dimension
-    from sklearn.decomposition import PCA
-    if text_embeddings.shape[1] != CONFIG['text_dim']:
-        print(f"  Projecting embeddings from {text_embeddings.shape[1]} to {CONFIG['text_dim']} dims...")
-        pca = PCA(n_components=CONFIG['text_dim'])
-        text_embeddings = pca.fit_transform(text_embeddings)
-        print(f"  ✓ Explained variance: {pca.explained_variance_ratio_.sum():.2%}")
-    
-    # Split data
-    print("\n4. Splitting data...")
-    X_train, X_test, y_train, y_test, text_train, text_test = train_test_split(
-        features, labels, text_embeddings,
+    # Split data FIRST (before any fitting)
+    print("\n3. Splitting data...")
+    X_train, X_test, y_train, y_test, dial_train, dial_test = train_test_split(
+        features, labels, dialogues,
         test_size=CONFIG['test_size'],
         stratify=labels,
         random_state=CONFIG['random_seed']
     )
     
+    print(f"  Train size: {len(X_train)}")
+    print(f"  Test size: {len(X_test)}")
+    
+    # Compute text embeddings separately for train and test
+    print("\n4. Computing text embeddings...")
+    print("  ⚠️  Computing embeddings separately to prevent data leakage")
+    
+    text_train = compute_text_embeddings(
+        dial_train,
+        model_name=CONFIG['text_model'],
+        batch_size=CONFIG['batch_size'],
+        device=device
+    )
+    
+    text_test = compute_text_embeddings(
+        dial_test,
+        model_name=CONFIG['text_model'],
+        batch_size=CONFIG['batch_size'],
+        device=device
+    )
+    
+    # Project to desired dimension (fit PCA on train only)
+    from sklearn.decomposition import PCA
+    if text_train.shape[1] != CONFIG['text_dim']:
+        print(f"\n5. Projecting embeddings from {text_train.shape[1]} to {CONFIG['text_dim']} dims...")
+        print(f"  ⚠️  Fitting PCA on TRAIN data only")
+        pca = PCA(n_components=CONFIG['text_dim'])
+        text_train = pca.fit_transform(text_train)  # Fit on train only!
+        text_test = pca.transform(text_test)  # Transform test using train PCA
+        print(f"  ✓ Explained variance: {pca.explained_variance_ratio_.sum():.2%}")
+    
     # Compute class weights
+    print("\n6. Computing class weights...")
     class_weights = compute_class_weight(
         'balanced',
         classes=np.unique(labels),
@@ -155,11 +170,8 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=CONFIG['batch_size'], shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=CONFIG['batch_size'])
     
-    print(f"  Train size: {len(X_train)}")
-    print(f"  Test size: {len(X_test)}")
-    
     # Create model
-    print("\n5. Creating multimodal model...")
+    print("\n7. Creating multimodal model...")
     model = get_model(
         model_type='multimodal',
         device=device,
@@ -172,7 +184,7 @@ def main():
     )
     
     # Train
-    print("\n6. Training model...")
+    print("\n8. Training model...")
     history = train_model(
         model,
         train_loader,
@@ -187,11 +199,11 @@ def main():
     )
     
     # Plot training history
-    print("\n7. Plotting training history...")
+    print("\n9. Plotting training history...")
     plot_training_history(history, save_path='outputs/multimodal_training_history.png')
     
     # Final evaluation
-    print("\n8. Final evaluation on test set...")
+    print("\n10. Final evaluation on test set...")
     from train import evaluate_multimodal
     
     # Load best model
@@ -209,11 +221,11 @@ def main():
     metrics = evaluate_model(predictions, true_labels, verbose=True)
     
     # Confusion matrix
-    print("\n9. Plotting confusion matrix...")
+    print("\n11. Plotting confusion matrix...")
     plot_confusion_matrix(predictions, true_labels, save_path='outputs/multimodal_confusion_matrix.png')
     
     # Save report
-    print("\n10. Saving evaluation report...")
+    print("\n12. Saving evaluation report...")
     save_evaluation_report(
         predictions, true_labels, metrics,
         output_dir=CONFIG['output_dir'],
@@ -221,7 +233,7 @@ def main():
     )
     
     # Compare with baseline
-    print("\n11. Comparing with baseline...")
+    print("\n13. Comparing with baseline...")
     # Load baseline results (if available)
     baseline_report = 'outputs/baseline_report.txt'
     if os.path.exists(baseline_report):
