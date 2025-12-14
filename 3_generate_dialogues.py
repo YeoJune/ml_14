@@ -16,7 +16,7 @@ from generate_text import (
 
 # Configuration
 CONFIG = {
-    'model_name': 'Qwen/Qwen2.5-7B-Instruct',  # Open model, no gate
+    'model_name': 'meta-llama/Llama-3.1-8B-Instruct',  # Open model, no gate
     # Alternative options:
     # 'meta-llama/Llama-3.2-3B-Instruct'  # Gated - requires HF token
     # 'mistralai/Mistral-7B-Instruct-v0.2'  # Requires auth but easier
