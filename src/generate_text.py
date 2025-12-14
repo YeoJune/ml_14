@@ -342,6 +342,19 @@ def generate_dialogues_rule_based(action_labels, output_file='data/text/dialogue
     print(f"✓ Generated {len(dialogues)} dialogues")
     print(f"✓ Saved to {output_file}")
     
+    # Also save to the default filename for compatibility
+    if 'rule_based' in output_file:
+        default_file = output_file.replace('_rule_based', '')
+        with open(default_file, 'w') as f:
+            for i, dialogue in enumerate(dialogues):
+                data = {
+                    'index': i,
+                    'dialogue': dialogue,
+                    'action': int(action_labels[i])
+                }
+                f.write(json.dumps(data) + '\n')
+        print(f"✓ Also saved to {default_file} for compatibility")
+    
     return dialogues
 
 
@@ -350,7 +363,26 @@ def generate_dialogues_rule_based(action_labels, output_file='data/text/dialogue
 # ============================================================================
 
 def load_dialogues(input_file='data/text/dialogues.jsonl'):
-    """Load generated dialogues from file"""
+    """
+    Load generated dialogues from file
+    
+    Args:
+        input_file: Path to dialogue file
+        
+    Returns:
+        dialogues: List of dialogue strings
+        actions: List of action labels
+    """
+    # Try primary file first
+    if not os.path.exists(input_file):
+        # Try rule-based fallback
+        fallback_file = input_file.replace('.jsonl', '_rule_based.jsonl')
+        if os.path.exists(fallback_file):
+            print(f"Primary file not found, using fallback: {fallback_file}")
+            input_file = fallback_file
+        else:
+            raise FileNotFoundError(f"Dialogue file not found: {input_file}")
+    
     dialogues = []
     actions = []
     

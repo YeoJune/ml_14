@@ -5,6 +5,7 @@ Generate poker dialogues using LLM for each decision point
 import sys
 sys.path.append('src')
 
+import os
 import numpy as np
 import pickle
 from dataset import load_processed_data
@@ -102,9 +103,18 @@ def main():
         'n_dialogues': len(dialogues),
         'model_name': CONFIG['model_name'],
         'max_tokens': CONFIG['max_tokens'],
-        'temperature': CONFIG['temperature']
+        'temperature': CONFIG['temperature'],
+        'method': 'vllm' if CONFIG['use_vllm'] else 'rule_based'
     }
-    metadata_file = CONFIG['output_file'].replace('.jsonl', '_metadata.pkl')
+    
+    # Determine actual output file used
+    if CONFIG['use_vllm']:
+        actual_output_file = CONFIG['output_file']
+    else:
+        actual_output_file = CONFIG['output_file'].replace('.jsonl', '_rule_based.jsonl')
+    
+    metadata_file = actual_output_file.replace('.jsonl', '_metadata.pkl')
+    os.makedirs(os.path.dirname(metadata_file), exist_ok=True)
     with open(metadata_file, 'wb') as f:
         pickle.dump(metadata, f)
     print(f"  Saved metadata to {metadata_file}")
@@ -113,7 +123,7 @@ def main():
     print("✓ DIALOGUE GENERATION COMPLETE")
     print("="*60)
     print(f"\nGenerated {len(dialogues)} dialogues")
-    print(f"Saved to {CONFIG['output_file']}")
+    print(f"Saved to {actual_output_file}")
 
 if __name__ == '__main__':
     main()
