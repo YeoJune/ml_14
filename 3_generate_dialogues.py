@@ -25,7 +25,7 @@ CONFIG = {
     # 'TinyLlama/TinyLlama-1.1B-Chat-v1.0'  # Very small
     'max_tokens': 50,
     'temperature': 0.7,
-    'batch_size': 32,
+    'batch_size': 8,  # Reduced for stability, increase to 16-32 if GPU has enough memory
     'output_file': 'data/text/dialogues.jsonl',
     'use_vllm': False,  # vLLM has dependency issues, use transformers instead
     'use_transformers': True,  # Use HuggingFace transformers (slower but stable)

@@ -238,22 +238,39 @@ def generate_dialogues_hf(
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"  Device: {device}")
     
+    if device == 'cuda':
+        print(f"  GPU available: {torch.cuda.get_device_name(0)}")
+        print(f"  GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
+    
     tokenizer_kwargs = {}
     model_kwargs = {
         'torch_dtype': torch.float16 if device == 'cuda' else torch.float32,
-        'device_map': 'auto' if device == 'cuda' else None
     }
+    
+    # Use device_map='auto' for GPU, this automatically handles multi-GPU
+    if device == 'cuda':
+        model_kwargs['device_map'] = 'auto'
+        model_kwargs['low_cpu_mem_usage'] = True
     
     if hf_token:
         tokenizer_kwargs['token'] = hf_token
         model_kwargs['token'] = hf_token
     
-    print("  Loading model...")
+    print("  Loading tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(model_name, **tokenizer_kwargs)
+    
+    print("  Loading model...")
     model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs)
     
-    if device == 'cpu':
+    # Explicitly move to GPU if not using device_map
+    if device == 'cuda' and 'device_map' not in model_kwargs:
         model = model.to(device)
+        print(f"  ✓ Model moved to {device}")
+    elif device == 'cuda':
+        print(f"  ✓ Model loaded with device_map=auto")
+    else:
+        model = model.to(device)
+        print(f"  ⚠️  Using CPU (this will be slow)")
     
     # Set padding token if not exist
     if tokenizer.pad_token is None:
@@ -263,7 +280,8 @@ def generate_dialogues_hf(
     
     # Generate in batches
     print("  Generating dialogues...")
-    for i in tqdm(range(0, len(states), batch_size), desc='Generating'):
+    print("  Note: First batch may take longer due to model compilation")
+    for batch_idx, i in enumerate(tqdm(range(0, len(states), batch_size), desc='Generating')):
         batch_states = states[i:i+batch_size]
         batch_labels = action_labels[i:i+batch_size]
         
