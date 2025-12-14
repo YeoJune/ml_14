@@ -99,6 +99,8 @@ def plot_confusion_matrix(predictions, labels, class_names=ACTION_NAMES, save_pa
     plt.tight_layout()
     
     if save_path:
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f"✓ Saved confusion matrix to {save_path}")
     
@@ -138,6 +140,8 @@ def plot_training_history(history, save_path=None):
     plt.tight_layout()
     
     if save_path:
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f"✓ Saved training history to {save_path}")
     
@@ -177,6 +181,8 @@ def plot_class_distribution(labels, class_names=ACTION_NAMES, save_path=None):
     plt.tight_layout()
     
     if save_path:
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f"✓ Saved class distribution to {save_path}")
     
@@ -216,6 +222,8 @@ def compare_models(results_dict, metric='weighted_f1', save_path=None):
     plt.tight_layout()
     
     if save_path:
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f"✓ Saved model comparison to {save_path}")
     
