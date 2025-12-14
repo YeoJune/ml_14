@@ -16,14 +16,21 @@ from generate_text import (
 
 # Configuration
 CONFIG = {
-    'model_name': 'meta-llama/Llama-3.2-3B-Instruct',  # Smaller model for faster generation
+    'model_name': 'microsoft/Phi-3-mini-4k-instruct',  # Open model, no gate
+    # Alternative options:
+    # 'meta-llama/Llama-3.2-3B-Instruct'  # Gated - requires HF token
+    # 'mistralai/Mistral-7B-Instruct-v0.2'  # Requires auth but easier
+    # 'google/gemma-2b-it'  # Small and fast
+    # 'HuggingFaceH4/zephyr-7b-beta'  # Good quality
+    # 'TinyLlama/TinyLlama-1.1B-Chat-v1.0'  # Very small
     'max_tokens': 50,
     'temperature': 0.7,
     'batch_size': 32,
     'output_file': 'data/text/dialogues.jsonl',
     'use_vllm': True,  # Set to False to use rule-based templates
     'use_cache': True,
-    'n_samples': None  # None = use all, or specify number for testing
+    'n_samples': None,  # None = use all, or specify number for testing
+    'hf_token': None  # Set to your HF token or use env var HF_TOKEN
 }
 
 def main():
@@ -75,7 +82,8 @@ def main():
                 temperature=CONFIG['temperature'],
                 batch_size=CONFIG['batch_size'],
                 output_file=CONFIG['output_file'],
-                use_cache=CONFIG['use_cache']
+                use_cache=CONFIG['use_cache'],
+                hf_token=CONFIG.get('hf_token')
             )
         except Exception as e:
             print(f"\n  Warning: vLLM generation failed: {e}")

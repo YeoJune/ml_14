@@ -66,7 +66,8 @@ def generate_dialogues_vllm(
     temperature=0.7,
     batch_size=32,
     output_file='data/text/dialogues.jsonl',
-    use_cache=True
+    use_cache=True,
+    hf_token=None
 ):
     """
     Generate dialogues using vLLM for fast batch inference
@@ -80,6 +81,7 @@ def generate_dialogues_vllm(
         batch_size: Batch size for generation
         output_file: Path to save generated dialogues
         use_cache: Whether to use cached results
+        hf_token: HuggingFace token for gated models (optional)
         
     Returns:
         dialogues: List of generated dialogue strings
@@ -101,17 +103,34 @@ def generate_dialogues_vllm(
     print(f"Model: {model_name}")
     print(f"Total samples: {len(states)}")
     
+    # Setup HuggingFace token if provided
+    if hf_token is None:
+        import os as os_module
+        hf_token = os_module.environ.get('HF_TOKEN')
+    
+    if hf_token:
+        print("  Using HuggingFace token for authentication")
+    
     try:
         from vllm import LLM, SamplingParams
         
-        # Initialize vLLM
-        llm = LLM(
-            model=model_name,
-            tensor_parallel_size=1,
-            dtype='float16',
-            gpu_memory_utilization=0.9,
-            max_model_len=2048
-        )
+        # Initialize vLLM with token if available
+        llm_kwargs = {
+            'model': model_name,
+            'tensor_parallel_size': 1,
+            'dtype': 'float16',
+            'gpu_memory_utilization': 0.9,
+            'max_model_len': 2048
+        }
+        
+        if hf_token:
+            llm_kwargs['tokenizer_mode'] = 'auto'
+            llm_kwargs['trust_remote_code'] = True
+            # Set environment variable for huggingface_hub
+            import os as os_module
+            os_module.environ['HF_TOKEN'] = hf_token
+        
+        llm = LLM(**llm_kwargs)
         
         sampling_params = SamplingParams(
             temperature=temperature,

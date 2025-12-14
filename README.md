@@ -2,6 +2,50 @@
 
 Multimodal AI agent for Texas Hold'em poker combining game state and dialogue information.
 
+## Setup
+
+### 1. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. HuggingFace Token Setup (Optional)
+
+For using gated models like Llama:
+
+**Option A: Environment Variable (Recommended)**
+
+```bash
+export HF_TOKEN="your_huggingface_token"
+```
+
+**Option B: Login via CLI**
+
+```bash
+huggingface-cli login
+# Enter your token when prompted
+```
+
+**Option C: Set in Config**
+Edit `3_generate_dialogues.py`:
+
+```python
+CONFIG = {
+    'hf_token': 'your_token_here',
+    ...
+}
+```
+
+**Getting a Token:**
+
+1. Go to https://huggingface.co/settings/tokens
+2. Create a new token (Read permission is enough)
+3. For Llama models, request access at https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct
+
+**Using Open Models (No Token Required):**
+The default config uses `microsoft/Phi-3-mini-4k-instruct` which requires no authentication.
+
 ## Project Structure
 
 ```
@@ -45,27 +89,35 @@ This executes all 4 steps sequentially.
 ### 3. Run Individual Steps
 
 #### Step 1: Preprocess Data
+
 ```bash
 python 1_preprocess_data.py
 ```
+
 Downloads Pluribus dataset and extracts 377-dim features.
 
 #### Step 2: Train Baseline Model
+
 ```bash
 python 2_train_baseline.py
 ```
+
 Trains MLP on game state features only.
 
 #### Step 3: Generate Dialogues
+
 ```bash
 python 3_generate_dialogues.py
 ```
+
 Generates poker dialogues using LLM (vLLM or rule-based).
 
 #### Step 4: Train Multimodal Model
+
 ```bash
 python 4_train_multimodal.py
 ```
+
 Trains model combining game state + text embeddings.
 
 ## Configuration
@@ -84,11 +136,13 @@ CONFIG = {
 ## Model Architectures
 
 ### Baseline (Game Only)
+
 ```
 Input (377) -> [1024, 512, 256] -> ReLU + Dropout -> Output (6)
 ```
 
 ### Multimodal (Game + Text)
+
 ```
 Game (377) -> [512, 256] -> [512]
                                    -> Concat [768] -> [384, 192] -> Output (6)
