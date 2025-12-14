@@ -27,7 +27,8 @@ CONFIG = {
     'temperature': 0.7,
     'batch_size': 32,
     'output_file': 'data/text/dialogues.jsonl',
-    'use_vllm': True,  # Set to False to use rule-based templates
+    'use_vllm': False,  # vLLM has dependency issues, use transformers instead
+    'use_transformers': True,  # Use HuggingFace transformers (slower but stable)
     'use_cache': True,
     'n_samples': None,  # None = use all, or specify number for testing
     'hf_token': None  # Set to your HF token or use env var HF_TOKEN
@@ -71,7 +72,27 @@ def main():
     # Generate dialogues
     print("\n3. Generating dialogues...")
     
-    if CONFIG['use_vllm']:
+    if CONFIG.get('use_transformers', False):
+        print("  Using HuggingFace Transformers...")
+        try:
+            from generate_text import generate_dialogues_hf
+            dialogues = generate_dialogues_hf(
+                states,
+                labels,
+                model_name=CONFIG['model_name'],
+                max_tokens=CONFIG['max_tokens'],
+                temperature=CONFIG['temperature'],
+                batch_size=CONFIG['batch_size'],
+                output_file=CONFIG['output_file']
+            )
+        except Exception as e:
+            print(f"\n  Warning: Transformers generation failed: {e}")
+            print("  Falling back to rule-based templates...")
+            dialogues = generate_dialogues_rule_based(
+                labels,
+                output_file=CONFIG['output_file'].replace('.jsonl', '_rule_based.jsonl')
+            )
+    elif CONFIG['use_vllm']:
         print("  Using vLLM for fast batch generation...")
         try:
             dialogues = generate_dialogues_vllm(

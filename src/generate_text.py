@@ -185,11 +185,13 @@ def generate_dialogues_vllm(
 def generate_dialogues_hf(
     states,
     action_labels,
-    model_name='meta-llama/Llama-3.2-3B-Instruct',
+    model_name='microsoft/Phi-3-mini-4k-instruct',
     max_tokens=50,
     temperature=0.7,
     batch_size=8,
-    output_file='data/text/dialogues.jsonl'
+    output_file='data/text/dialogues.jsonl',
+    use_cache=True,
+    hf_token=None
 ):
     """
     Generate dialogues using HuggingFace transformers (fallback if vLLM unavailable)
@@ -202,28 +204,65 @@ def generate_dialogues_hf(
         temperature: Sampling temperature
         batch_size: Batch size for generation
         output_file: Path to save generated dialogues
+        use_cache: Whether to use cached results
+        hf_token: HuggingFace token for gated models
         
     Returns:
         dialogues: List of generated dialogue strings
     """
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    
+    # Check cache
+    if use_cache and os.path.exists(output_file):
+        print(f"Loading cached dialogues from {output_file}")
+        dialogues = []
+        with open(output_file, 'r') as f:
+            for line in f:
+                data = json.loads(line)
+                dialogues.append(data['dialogue'])
+        print(f"✓ Loaded {len(dialogues)} cached dialogues")
+        return dialogues
+    
     from transformers import AutoTokenizer, AutoModelForCausalLM
     
     print(f"Generating dialogues using HuggingFace transformers...")
     print(f"Model: {model_name}")
     print(f"Total samples: {len(states)}")
     
+    # Setup HuggingFace token if provided
+    if hf_token is None:
+        import os as os_module
+        hf_token = os_module.environ.get('HF_TOKEN')
+    
     # Load model and tokenizer
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        torch_dtype=torch.float16,
-        device_map='auto'
-    )
+    print(f"  Device: {device}")
+    
+    tokenizer_kwargs = {}
+    model_kwargs = {
+        'torch_dtype': torch.float16 if device == 'cuda' else torch.float32,
+        'device_map': 'auto' if device == 'cuda' else None
+    }
+    
+    if hf_token:
+        tokenizer_kwargs['token'] = hf_token
+        model_kwargs['token'] = hf_token
+    
+    print("  Loading model...")
+    tokenizer = AutoTokenizer.from_pretrained(model_name, **tokenizer_kwargs)
+    model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs)
+    
+    if device == 'cpu':
+        model = model.to(device)
+    
+    # Set padding token if not exist
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
     
     dialogues = []
     
     # Generate in batches
+    print("  Generating dialogues...")
     for i in tqdm(range(0, len(states), batch_size), desc='Generating'):
         batch_states = states[i:i+batch_size]
         batch_labels = action_labels[i:i+batch_size]
@@ -236,7 +275,13 @@ def generate_dialogues_hf(
             prompts.append(full_prompt)
         
         # Tokenize
-        inputs = tokenizer(prompts, return_tensors='pt', padding=True, truncation=True)
+        inputs = tokenizer(
+            prompts, 
+            return_tensors='pt', 
+            padding=True, 
+            truncation=True,
+            max_length=512
+        )
         inputs = {k: v.to(device) for k, v in inputs.items()}
         
         # Generate
@@ -252,15 +297,22 @@ def generate_dialogues_hf(
         
         # Decode
         for j, output in enumerate(outputs):
-            generated_text = tokenizer.decode(output, skip_special_tokens=True)
-            # Extract only the generated part (after the prompt)
-            generated_text = generated_text.split("Generate a realistic poker dialogue")[-1].strip()
-            if generated_text.startswith(':'):
-                generated_text = generated_text[1:].strip()
+            # Get only the generated part (skip input prompt)
+            input_length = inputs['input_ids'][j].shape[0]
+            generated_ids = output[input_length:]
+            generated_text = tokenizer.decode(generated_ids, skip_special_tokens=True)
+            
+            # Clean up
+            generated_text = generated_text.strip()
+            # Take only first sentence if multiple
+            if '.' in generated_text:
+                generated_text = generated_text.split('.')[0] + '.'
+            if '\n' in generated_text:
+                generated_text = generated_text.split('\n')[0]
+            
             dialogues.append(generated_text)
     
     # Save to file
-    os.makedirs(os.path.dirname(output_file), exist_ok=True)
     with open(output_file, 'w') as f:
         for i, dialogue in enumerate(dialogues):
             data = {
