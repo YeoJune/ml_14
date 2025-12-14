@@ -7,9 +7,12 @@ sys.path.append('src')
 
 import torch
 import numpy as np
-from dataset import load_processed_data, get_dataloaders
+from sklearn.model_selection import train_test_split
+from sklearn.utils.class_weight import compute_class_weight
+from torch.utils.data import DataLoader
+from dataset import load_processed_data, PokerDataset
 from models import get_model
-from train import train_model
+from train import train_model, evaluate
 from evaluate import (
     evaluate_model, 
     plot_confusion_matrix, 
@@ -48,32 +51,66 @@ def main():
     print("\n1. Loading processed data...")
     features, labels = load_processed_data('data/processed')
     
-    # Show class distribution
-    print("\n2. Visualizing class distribution...")
-    plot_class_distribution(labels, save_path='outputs/class_distribution.png')
+    # Apply PCA to game features for fair comparison with multimodal
+    print("\n2. Applying PCA to game features...")
+    print(f"  Original dimension: {features.shape[1]}")
+    print(f"  Target dimension: 256 (same as multimodal)")
     
-    # Create dataloaders
-    print("\n3. Creating dataloaders...")
-    train_loader, test_loader, class_weights = get_dataloaders(
+    from sklearn.decomposition import PCA
+    
+    # Split first, then fit PCA on train only
+    X_train_raw, X_test_raw, y_train, y_test = train_test_split(
         features, labels,
-        batch_size=CONFIG['batch_size'],
         test_size=CONFIG['test_size'],
-        random_seed=CONFIG['random_seed']
+        stratify=labels,
+        random_state=CONFIG['random_seed']
     )
     
+    pca = PCA(n_components=256)
+    X_train = pca.fit_transform(X_train_raw)
+    X_test = pca.transform(X_test_raw)
+    
+    print(f"  ✓ Reduced to 256 dims")
+    print(f"  ✓ Explained variance: {pca.explained_variance_ratio_.sum():.2%}")
+    
+    # Show class distribution
+    print("\n3. Visualizing class distribution...")
+    plot_class_distribution(labels, save_path='outputs/class_distribution.png')
+    
+    # Create dataloaders (data already split above)
+    print("\n4. Creating dataloaders...")
+    
+    # Compute class weights
+    class_weights = compute_class_weight(
+        'balanced',
+        classes=np.unique(labels),
+        y=labels
+    )
+    class_weights = torch.FloatTensor(class_weights)
+    
+    train_dataset = PokerDataset(X_train, y_train)
+    test_dataset = PokerDataset(X_test, y_test)
+    
+    train_loader = DataLoader(train_dataset, batch_size=CONFIG['batch_size'], shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=CONFIG['batch_size'])
+    
+    print(f"Train size: {len(X_train)}")
+    print(f"Test size: {len(X_test)}")
+    print(f"Class weights: {class_weights}")
+    
     # Create model
-    print("\n4. Creating baseline model...")
+    print("\n5. Creating baseline model...")
     model = get_model(
         model_type='baseline',
         device=device,
-        input_dim=377,
+        input_dim=256,  # Changed from 377 to 256
         hidden_dims=CONFIG['hidden_dims'],
         output_dim=6,
         dropout=CONFIG['dropout']
     )
     
     # Train
-    print("\n5. Training model...")
+    print("\n6. Training model...")
     history = train_model(
         model,
         train_loader,
@@ -88,11 +125,11 @@ def main():
     )
     
     # Plot training history
-    print("\n6. Plotting training history...")
+    print("\n7. Plotting training history...")
     plot_training_history(history, save_path='outputs/baseline_training_history.png')
     
     # Final evaluation
-    print("\n7. Final evaluation on test set...")
+    print("\n8. Final evaluation on test set...")
     from train import evaluate
     
     # Load best model
@@ -110,11 +147,11 @@ def main():
     metrics = evaluate_model(predictions, true_labels, verbose=True)
     
     # Confusion matrix
-    print("\n8. Plotting confusion matrix...")
+    print("\n9. Plotting confusion matrix...")
     plot_confusion_matrix(predictions, true_labels, save_path='outputs/baseline_confusion_matrix.png')
     
     # Save report
-    print("\n9. Saving evaluation report...")
+    print("\n10. Saving evaluation report...")
     save_evaluation_report(
         predictions, true_labels, metrics,
         output_dir=CONFIG['output_dir'],
